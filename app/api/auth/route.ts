@@ -1,45 +1,21 @@
-import { connectDB } from "@/lib/mongoose";
-import { User } from "@/models/user";
-import { NextResponse } from "next/server";
-import bcrypt from "bcrypt";
+import { handleServerError } from '@/lib/handleError';
+import { connectDB } from '@/lib/mongoose';
+import { authOptions } from './[...nextauth]/route';
+import { getServerSession } from 'next-auth';
 
-export async function POST(req: Request) {
+export async function GET(req: Request) {
   try {
     await connectDB();
-    const { email, password, nickName } = await req.json();
-
-    if (!email || !password || !nickName) {
-      return NextResponse.json(
-        { success: false, message: "필수값 없음" },
-        { status: 400 }
-      );
+    const session = await getServerSession(authOptions);
+    const { nickName, email, id, role } = session?.user || {};
+    if (!session) {
+      return new Response('Unauthorized', { status: 401 });
     }
-
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return NextResponse.json(
-        { success: false, message: "이미 존재하는 이메일입니다." },
-        { status: 400 }
-      );
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    const newUser = new User({
-      email: email.trim().toLowerCase(),
-      password: hashedPassword,
-      nickName: nickName.trim(),
+    return new Response(JSON.stringify({ nickName, email, id, role }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
     });
-
-    const savedUser = await newUser.save();
-    const { password: _, ...userWithoutPassword } = savedUser.toObject();
-
-    return NextResponse.json({ success: true, data: userWithoutPassword });
-  } catch (err: any) {
-    console.error("회원가입 실패:", err);
-    return NextResponse.json(
-      { success: false, message: "서버 에러 발생", error: err.message },
-      { status: 500 }
-    );
+  } catch (err: unknown) {
+    return handleServerError(err, 'DB 연결 실패');
   }
 }
