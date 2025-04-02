@@ -1,4 +1,4 @@
-import mongoose, { Schema, model, models } from "mongoose";
+import { Schema, model, models } from 'mongoose';
 
 const UserSchema = new Schema(
   {
@@ -18,6 +18,11 @@ const UserSchema = new Schema(
       type: String,
       required: true,
     },
+    role: {
+      type: String,
+      enum: ['owner', 'member', 'viewer'],
+      default: 'member',
+    },
   },
   {
     timestamps: true, // ✅ createdAt, updatedAt 자동 생성
@@ -25,6 +30,7 @@ const UserSchema = new Schema(
 );
 
 // 이미 모델이 등록되어 있으면 재사용 (Next.js hot reload 대응)
-const User = models.User || model("User", UserSchema);
+const User = models.User || model('User', UserSchema);
+export type UserDoc = typeof UserSchema extends Schema<infer T> ? T : never;
 
 export { User };
