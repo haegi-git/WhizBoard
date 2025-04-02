@@ -15,12 +15,16 @@
   },
   "dependencies": {
     "bcrypt": "^5.1.1",
+    "canvas": "^3.1.0",
     "jsonwebtoken": "^9.0.2",
+    "konva": "^9.3.20",
     "mongoose": "^8.13.0",
     "next": "15.2.4",
     "next-auth": "^4.24.11",
+    "perfect-freehand": "^1.2.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-konva": "^19.0.3",
     "zustand": "^5.0.3"
   },
   "devDependencies": {
@@ -37,6 +41,7 @@
     "eslint-config-prettier": "^10.1.1",
     "eslint-plugin-prettier": "^5.2.5",
     "prettier": "^3.5.3",
+    "raw-loader": "^4.0.2",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
