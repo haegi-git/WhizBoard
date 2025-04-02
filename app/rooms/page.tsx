@@ -1,9 +1,14 @@
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { Session } from 'next-auth';
 import { getServerSession } from 'next-auth';
 
 export default async function RoomsPage() {
-  const session = await getServerSession(authOptions);
-  const { nickName } = session.user;
+  const session = (await getServerSession(authOptions)) as Session;
+
+  if (!session?.user) {
+    return <p>로그인이 필요합니다.</p>;
+  }
+
   return (
     <div
       className="flex flex-col
@@ -15,7 +20,7 @@ export default async function RoomsPage() {
 
       <div className="flex gap-10">
         <div>
-          <h1>Hello! {nickName}</h1>
+          <h1>Hello! {session.user.nickName}</h1>
           <h1>Options</h1>
           <h1>Create Room</h1>
         </div>
