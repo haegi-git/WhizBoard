@@ -8,11 +8,11 @@ export default function SignUpForm() {
     password: '',
     nickName: '',
   });
-  const handleInput = (e) => {
+  const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setSignInput({ ...signInput, [name]: value });
   };
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.ChangeEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     try {

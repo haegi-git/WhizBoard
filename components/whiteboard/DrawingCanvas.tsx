@@ -2,22 +2,24 @@
 
 import { Stage, Layer, Shape } from 'react-konva';
 import { useRef, useState, useEffect } from 'react';
-import { Point, Stroke } from '@/types/canvasTypes';
 import type Konva from 'konva';
+import { Stroke, ShapeObject, DrawingCanvasProps } from '@/types/canvasTypes';
 import { getSvgPath } from './utils/getSvgPath';
 import { useDrawingHandlers } from './hooks/useDrawingHandlers';
 
-type Props = {
-  color: string;
-  width: number;
-  strokes: Stroke[];
-  setStrokes: (strokes: Stroke[]) => void;
-  isPanning: boolean;
-};
-
-export default function DrawingCanvas({ color, width, strokes, setStrokes, isPanning }: Props) {
+export default function DrawingCanvas({
+  tool,
+  color,
+  width,
+  elements,
+  setElements,
+  addElement,
+  filled, // ✅ Toolbar에서 받아온 값 넘겨줘야 해!
+  addDeleteHistory,
+}: DrawingCanvasProps) {
   const stageRef = useRef<Konva.Stage | null>(null);
   const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
+  const [currentShape, setCurrentShape] = useState<ShapeObject | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
   const [scale, setScale] = useState(1);
@@ -33,20 +35,25 @@ export default function DrawingCanvas({ color, width, strokes, setStrokes, isPan
   }, []);
 
   const { handleMouseDown, handleMouseMove, handleMouseUp } = useDrawingHandlers({
-    isPanning,
+    tool,
     color,
     width,
-    strokes,
-    setStrokes,
+    filled,
     stageRef,
+    isDrawing,
+    setIsDrawing,
     currentStroke,
     setCurrentStroke,
-    setIsDrawing,
+    currentShape,
+    setCurrentShape,
+    addElement,
+    addDeleteHistory, // ✅ 이거 추가!
+    elements,
+    setElements,
   });
 
   const handleWheel = (e: Konva.KonvaEventObject<WheelEvent>) => {
     e.evt.preventDefault();
-
     const scaleBy = 1.05;
     const stage = stageRef.current;
     if (!stage) return;
@@ -63,11 +70,12 @@ export default function DrawingCanvas({ color, width, strokes, setStrokes, isPan
     const direction = e.evt.deltaY > 0 ? -1 : 1;
     const newScale = direction > 0 ? oldScale * scaleBy : oldScale / scaleBy;
 
-    setScale(newScale);
     const newPos = {
       x: pointer.x - mousePointTo.x * newScale,
       y: pointer.y - mousePointTo.y * newScale,
     };
+
+    setScale(newScale);
     setPosition(newPos);
 
     stage.scale({ x: newScale, y: newScale });
@@ -84,24 +92,78 @@ export default function DrawingCanvas({ color, width, strokes, setStrokes, isPan
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onWheel={handleWheel}
-      draggable={isPanning}
+      draggable={tool === 'pan'}
       scale={{ x: scale, y: scale }}
       x={position.x}
       y={position.y}
     >
       <Layer>
-        {strokes.map((stroke, idx) => (
-          <Shape
-            key={idx}
-            sceneFunc={(ctx) => {
-              const path = new Path2D(getSvgPath(stroke.points, stroke.width));
-              ctx.beginPath();
-              ctx.fillStyle = stroke.color;
-              ctx.fill(path);
-              ctx.closePath();
-            }}
-          />
-        ))}
+        {/* 기존 요소들 */}
+        {elements.map((el, idx) => {
+          if (el.type === 'stroke') {
+            return (
+              <Shape
+                key={`stroke-${idx}`}
+                sceneFunc={(ctx) => {
+                  const path = new Path2D(getSvgPath(el.points, el.width));
+                  ctx.beginPath();
+                  ctx.fillStyle = el.color;
+                  ctx.fill(path);
+                  ctx.closePath();
+                }}
+              />
+            );
+          }
+
+          if (el.type === 'rectangle' || el.type === 'circle') {
+            const { start, end, color, width, filled } = el;
+            const x = Math.min(start.x, end.x);
+            const y = Math.min(start.y, end.y);
+            const w = Math.abs(end.x - start.x);
+            const h = Math.abs(end.y - start.y);
+
+            return (
+              <Shape
+                key={`${el.type}-${idx}`}
+                sceneFunc={(ctx) => {
+                  ctx.beginPath();
+                  if (el.type === 'rectangle') {
+                    if (filled) {
+                      ctx.fillStyle = color;
+                      ctx.rect(x, y, w, h);
+                      ctx.fill();
+                    } else {
+                      ctx.strokeStyle = color;
+                      ctx.lineWidth = width;
+                      ctx.strokeRect(x, y, w, h);
+                    }
+                  } else {
+                    const centerX = x + w / 2;
+                    const centerY = y + h / 2;
+                    const radiusX = w / 2;
+                    const radiusY = h / 2;
+
+                    if (filled) {
+                      ctx.fillStyle = color;
+                      ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, Math.PI * 2);
+                      ctx.fill();
+                    } else {
+                      ctx.strokeStyle = color;
+                      ctx.lineWidth = width;
+                      ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, Math.PI * 2);
+                      ctx.stroke();
+                    }
+                  }
+                  ctx.closePath();
+                }}
+              />
+            );
+          }
+
+          return null;
+        })}
+
+        {/* 현재 그리고 있는 선 */}
         {currentStroke && (
           <Shape
             sceneFunc={(ctx) => {
@@ -109,6 +171,49 @@ export default function DrawingCanvas({ color, width, strokes, setStrokes, isPan
               ctx.beginPath();
               ctx.fillStyle = currentStroke.color;
               ctx.fill(path);
+              ctx.closePath();
+            }}
+          />
+        )}
+
+        {/* 현재 그리고 있는 도형 */}
+        {currentShape && (
+          <Shape
+            sceneFunc={(ctx) => {
+              const { type, start, end, color, width, filled } = currentShape;
+              const x = Math.min(start.x, end.x);
+              const y = Math.min(start.y, end.y);
+              const w = Math.abs(end.x - start.x);
+              const h = Math.abs(end.y - start.y);
+
+              ctx.beginPath();
+              if (type === 'rectangle') {
+                if (filled) {
+                  ctx.fillStyle = color;
+                  ctx.rect(x, y, w, h);
+                  ctx.fill();
+                } else {
+                  ctx.strokeStyle = color;
+                  ctx.lineWidth = width;
+                  ctx.strokeRect(x, y, w, h);
+                }
+              } else if (type === 'circle') {
+                const centerX = x + w / 2;
+                const centerY = y + h / 2;
+                const radiusX = w / 2;
+                const radiusY = h / 2;
+
+                if (filled) {
+                  ctx.fillStyle = color;
+                  ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, Math.PI * 2);
+                  ctx.fill();
+                } else {
+                  ctx.strokeStyle = color;
+                  ctx.lineWidth = width;
+                  ctx.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, Math.PI * 2);
+                  ctx.stroke();
+                }
+              }
               ctx.closePath();
             }}
           />
