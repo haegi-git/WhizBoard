@@ -1,70 +1,125 @@
-import { RefObject } from 'react';
-import type Konva from 'konva';
-import { Stroke, Point } from '@/types/canvasTypes';
+import { UseDrawingHandlersProps, Stroke, ShapeObject } from '@/types/canvasTypes';
 import { transformPointerPosition } from '../utils/transformPointer';
-
-interface UseDrawingHandlersProps {
-  isPanning: boolean;
-  color: string;
-  width: number;
-  strokes: Stroke[];
-  setStrokes: (strokes: Stroke[]) => void;
-  stageRef: RefObject<Konva.Stage>;
-  setCurrentStroke: (stroke: Stroke | null) => void;
-  currentStroke: Stroke | null;
-  setIsDrawing: (value: boolean) => void;
-}
+import { isNearStroke } from '../utils/isNearStroke';
+import { isNearShape } from '../utils/isNearShape';
+import type Konva from 'konva';
 
 export const useDrawingHandlers = ({
-  isPanning,
+  tool,
   color,
   width,
-  strokes,
-  setStrokes,
+  filled,
   stageRef,
+  isDrawing,
+  setIsDrawing,
   currentStroke,
   setCurrentStroke,
-  setIsDrawing,
+  currentShape,
+  setCurrentShape,
+  elements,
+  setElements,
+  addElement,
+  addDeleteHistory, // ✅ 추가됨
 }: UseDrawingHandlersProps) => {
-  const handleMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    if (isPanning) return;
-    setIsDrawing(true);
+  const handleMouseDown = () => {
     const stage = stageRef.current;
-    const pointer = stage?.getPointerPosition();
-    if (!stage || !pointer) return;
-    const pos = transformPointerPosition(stage, pointer);
-    setCurrentStroke({ points: [pos], color, width });
+    if (!stage) return;
+
+    const pos = transformPointerPosition(stage);
+    if (!pos) return;
+
+    if (tool === 'eraser') {
+      const removed = elements.filter((el) => {
+        if (el.type === 'stroke') return isNearStroke(pos, el);
+        return isNearShape(pos, el);
+      });
+      const remaining = elements.filter((el) => !removed.includes(el));
+
+      if (removed.length > 0) {
+        setElements(remaining);
+        addDeleteHistory(removed); // ✅ 삭제 기록 추가
+      }
+
+      return;
+    }
+
+    if (tool === 'rectangle' || tool === 'circle') {
+      const newShape: ShapeObject = {
+        type: tool,
+        start: pos,
+        end: pos,
+        color,
+        width,
+        filled,
+      };
+      setCurrentShape(newShape);
+      setIsDrawing(true);
+      return;
+    }
+
+    if (tool === 'draw') {
+      const newStroke: Stroke = {
+        type: 'stroke',
+        points: [pos],
+        color,
+        width,
+      };
+      setCurrentStroke(newStroke);
+      setIsDrawing(true);
+    }
   };
 
   const handleMouseMove = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    if (!currentStroke || isPanning) return;
     const stage = stageRef.current;
-    const pointer = stage?.getPointerPosition();
-    if (!stage || !pointer) return;
+    if (!stage) return;
 
-    const pos = transformPointerPosition(stage, pointer);
-    const isShiftPressed = e.evt.shiftKey;
+    const pos = transformPointerPosition(stage);
+    if (!pos) return;
 
-    if (isShiftPressed) {
-      setCurrentStroke({
-        ...currentStroke,
-        points: [currentStroke.points[0], pos],
-      });
-    } else {
-      setCurrentStroke({
-        ...currentStroke,
-        points: [...currentStroke.points, pos],
-      });
+    if (tool === 'eraser') return;
+
+    if ((tool === 'rectangle' || tool === 'circle') && isDrawing && currentShape) {
+      const isShiftPressed = e.evt.shiftKey;
+      let newEnd = pos;
+
+      if (isShiftPressed) {
+        const dx = pos.x - currentShape.start.x;
+        const dy = pos.y - currentShape.start.y;
+        const size = Math.min(Math.abs(dx), Math.abs(dy));
+
+        newEnd = {
+          x: currentShape.start.x + Math.sign(dx) * size,
+          y: currentShape.start.y + Math.sign(dy) * size,
+        };
+      }
+
+      setCurrentShape({ ...currentShape, end: newEnd });
+      return;
+    }
+
+    if (tool === 'draw' && isDrawing && currentStroke) {
+      const updatedPoints = [...currentStroke.points, pos];
+      setCurrentStroke({ ...currentStroke, points: updatedPoints });
     }
   };
 
   const handleMouseUp = () => {
-    if (!isPanning && currentStroke) {
-      setStrokes([...strokes, currentStroke]);
+    if (tool === 'draw' && currentStroke) {
+      addElement(currentStroke);
+      setCurrentStroke(null);
     }
+
+    if ((tool === 'rectangle' || tool === 'circle') && currentShape) {
+      addElement(currentShape);
+      setCurrentShape(null);
+    }
+
     setIsDrawing(false);
-    setCurrentStroke(null);
   };
 
-  return { handleMouseDown, handleMouseMove, handleMouseUp };
+  return {
+    handleMouseDown,
+    handleMouseMove,
+    handleMouseUp,
+  };
 };
