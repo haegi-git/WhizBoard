@@ -4,6 +4,7 @@ import { useState } from 'react';
 import DrawingCanvas from '@/components/whiteboard/DrawingCanvas';
 import Toolbar from '@/components/whiteboard/Toolbar';
 import { CanvasElement, Tool, HistoryItem } from '@/types/canvasTypes';
+import ListBox from '@/components/listbox/ListBox';
 
 export default function Whiteboard() {
   const [tool, setTool] = useState<Tool>('draw');
@@ -78,14 +79,7 @@ export default function Whiteboard() {
         addDeleteHistory={addDeleteHistory}
         filled={filled}
       />
-
-      <div
-        className="fixed
-         top-10 right-10 bg-gray-300 w-[300px] h-[500px] rounded-lg
-         shadow-lg"
-      >
-        <h1>메모</h1>
-      </div>
+      <ListBox />
     </div>
   );
 }
