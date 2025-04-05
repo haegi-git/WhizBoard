@@ -1,12 +1,15 @@
 'use client';
 
-import { useState } from 'react';
-import { IoArrowForwardCircleOutline, IoArrowBackCircleOutline } from 'react-icons/io5';
+import { useEffect, useState } from 'react';
+import { IoArrowBackCircleOutline } from 'react-icons/io5';
 import CreatePopup from './CreatePopup';
+import { ListItemType } from '@/types/listItemTypes';
+import List from './List';
 
 export default function ListBox() {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(true);
   const [isPopupOpen, setIsPopupOpen] = useState(false);
+  const [listItem, setListItem] = useState<ListItemType[]>();
 
   const handleToggle = () => {
     setIsOpen((prev) => !prev);
@@ -14,6 +17,21 @@ export default function ListBox() {
   const handelePopupToggle = () => {
     setIsPopupOpen((prev) => !prev);
   };
+
+  useEffect(() => {
+    const getListItem = async () => {
+      const res = await fetch('/api/list', {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!res.ok) throw new Error('리스트 가져오기 실패');
+      const data = await res.json();
+      setListItem(data);
+      console.log(data);
+    };
+    getListItem();
+  }, []);
+
   return (
     <>
       {isOpen ? null : (
@@ -23,33 +41,9 @@ export default function ListBox() {
         />
       )}
 
-      <div
-        className={`fixed
-         top-10 bg-gray-300 w-[300px] min-h-[400px] max-h-[500px] rounded-lg
-         animation duration-500 ease-in-out
-         shadow-lg ${isOpen ? 'right-10' : 'right-[-300px]'}`}
-      >
-        <h1 className="font-bold text-center p-4 border-b-4 border-white">Check List</h1>
-        <IoArrowForwardCircleOutline
-          onClick={handleToggle}
-          className="absolute top-2 right-2 text-4xl cursor-pointer"
-        />
+      <List isOpen={isOpen} setIsOpen={setIsOpen} handelePopupToggle={handelePopupToggle} />
 
-        <ul className="w-full h-full overflow-y-auto flex flex-col">
-          <li className="flex items-center p-4 border-b-2 border-black">아이템1</li>
-          <li className="flex items-center p-4 border-b-2 border-black">아이템1</li>
-          <li className="flex items-center p-4 border-b-2 border-black">아이템1</li>
-          <button
-            onClick={handelePopupToggle}
-            className="bg-amber-700
-           p-4 absolute bottom-0 w-full rounded-b-lg cursor-pointer"
-          >
-            Create List
-          </button>
-        </ul>
-      </div>
-
-      <CreatePopup />
+      {isPopupOpen ? <CreatePopup /> : null}
     </>
   );
 }
